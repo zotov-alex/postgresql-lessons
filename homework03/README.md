@@ -51,7 +51,9 @@ postgres=# select * from test;
 ---
 ## Подключение дополнительного диска к серверу
 Можно подключить к виртуальной дополнительный диск средствами гипервизора. В данном случае, используется QEMU/KVM под управлением утилиты virt-manager:
+
 ![Подключение дополнительного диска](./screenshot_add_disk.png)
+
 Так как при помощи virt-manager невозможно внести изменения в виртуальную машину, после добавления диска её требуется перезапустить. После перезапуска подключенный диск `/dev/vdb` виден в системе:
 ```
 user@bubuntu20042:~$ lsblk
@@ -208,3 +210,125 @@ user@bubuntu20042:~$ sudo -u postgres pg_lsclusters
 Ver Cluster Port Status Owner    Data directory          Log file
 15  main    5432 online postgres /mnt/pgsql/data/15/main /var/log/postgresql/postgresql-15-main.log
 ```
+---
+## Дополнительное задание - перенос диска с каталогом данных в другое место
+Предположим, возникли проблемы, из за которых сервер с СУБД более не запускается, но диск с каталогом данных СУБД сохранился, и требуется задействовать его на другом сервере с сохранением данных.
+
+Старая виртуальная машина остановлена. Создаём новую (в качестве шаблона использована ВМ, на основе которой ранее создавалась прошлая тестовая машина):
+
+![Создание виртуальной машины](./screenshot_clone_vm.png)
+
+Сразу подключим созданный ранее дополнительный диск, на котором уже есть каталог данных PostgreSQL:
+
+![Подключение дополнительного диска](./screenshot_use_disk.png)
+
+virt-manager выведет предупреждение о том что диск уже подключен к другой машине, которое можно игнорировать и просто нажать "ОК", так как старая виртуальная машина остановлена.
+
+Попробуем запустить новую виртуальную машину, и сразу уточним её IP, чтобы проверить что эта ВМ - новая:
+
+![Консоль новой ВМ](./screenshot_new_vm.png)
+
+Дальнейшие действия будут выполняться через SSH-консоль.
+
+Повторно настроен APT-репозиторий PGDG по документации с сайта [postgresql.org](https://www.postgresql.org/download/linux/ubuntu/), и установлена СУБД:
+```
+wr@bubuntu20042:~$ sudo apt install postgresql-15
+```
+После установки удостоверимся, что кластер PostgreSQL работоспособен, и остановим его:
+```
+wr@bubuntu20042:~$ sudo -u postgres pg_lsclusters
+Ver Cluster Port Status Owner    Data directory              Log file
+15  main    5432 online postgres /var/lib/postgresql/15/main /var/log/postgresql/postgresql-15-main.log
+wr@bubuntu20042:~$ sudo systemctl stop postgresql
+```
+Удалим каталог данных нового кластера, соблюдая осторожность при вводе пути:
+```
+wr@bubuntu20042:~$ sudo rm -rf /var/lib/postgresql/15
+```
+Далее, требуется примонтировать к новой виртуальной машине подключенный дополнительный диск с данными. Проверим его доступность:
+```
+wr@bubuntu20042:~$ lsblk
+NAME                      MAJ:MIN RM  SIZE RO TYPE MOUNTPOINT
+loop0                       7:0    0 63,2M  1 loop /snap/core20/1738
+loop1                       7:1    0 91,9M  1 loop /snap/lxd/24061
+loop2                       7:2    0 91,8M  1 loop /snap/lxd/23991
+loop3                       7:3    0   64M  1 loop /snap/core20/2318
+loop4                       7:4    0 55,6M  1 loop /snap/core18/2654
+loop5                       7:5    0 49,6M  1 loop /snap/snapd/17883
+loop6                       7:6    0 55,7M  1 loop /snap/core18/2823
+vda                       252:0    0   20G  0 disk 
+├─vda1                    252:1    0    1M  0 part 
+├─vda2                    252:2    0    1G  0 part /boot
+└─vda3                    252:3    0   19G  0 part 
+  └─ubuntu--vg-ubuntu--lv 253:0    0   19G  0 lvm  /
+vdb                       252:16   0   20G  0 disk 
+└─vdb1                    252:17   0   20G  0 part 
+```
+Узнаем его UUID:
+```
+wr@bubuntu20042:~$ blkid /dev/vdb1
+/dev/vdb1: UUID="0b1835e5-8b41-4f9a-9c58-dacc81cad346" TYPE="ext4" PARTUUID="0784dc9a-01"
+```
+Создадим точку монтирования по пути /mnt/pgdata, и добавим запись в fstab:
+```
+/dev/disk/by-uuid/0b1835e5-8b41-4f9a-9c58-dacc81cad346 /mnt/pgdata ext4 noatime,nodiratime 0 0
+```
+После этого можно примонтировать диск, и проверить его содержимое:
+```
+wr@bubuntu20042:~$ sudo mount -a
+wr@bubuntu20042:~$ df -h
+Filesystem                         Size  Used Avail Use% Mounted on
+udev                               941M     0  941M   0% /dev
+tmpfs                              198M  1,8M  196M   1% /run
+/dev/mapper/ubuntu--vg-ubuntu--lv   19G  5,6G   12G  32% /
+tmpfs                              986M     0  986M   0% /dev/shm
+tmpfs                              5,0M     0  5,0M   0% /run/lock
+tmpfs                              986M     0  986M   0% /sys/fs/cgroup
+/dev/vda2                          974M  209M  698M  24% /boot
+/dev/loop4                          56M   56M     0 100% /snap/core18/2654
+/dev/loop0                          64M   64M     0 100% /snap/core20/1738
+/dev/loop5                          50M   50M     0 100% /snap/snapd/17883
+/dev/loop6                          56M   56M     0 100% /snap/core18/2823
+/dev/loop1                          92M   92M     0 100% /snap/lxd/24061
+/dev/loop2                          92M   92M     0 100% /snap/lxd/23991
+/dev/loop3                          64M   64M     0 100% /snap/core20/2318
+tmpfs                              198M     0  198M   0% /run/user/1000
+/dev/vdb1                           20G   39M   19G   1% /mnt/pgdata
+wr@bubuntu20042:~$ ls -lh /mnt/pgdata/
+total 20K
+drwxr-xr-x 3 postgres postgres 4,0K мая 21 14:25 data
+drwx------ 2 root     root      16K мая 21 14:08 lost+found
+```
+Видно что старый каталог данных сохранился, и даже сохранились назначенные права (в данном случае совпали идентификаторы пользователей и групп postgres в старой и новой системе). При необходимости, можно исправить принадлежность каталога данных текущему пользователю командой:
+```
+wr@bubuntu20042:~$ sudo chown -R postgres:postgres /mnt/pgdata/data/
+```
+В случае если на новом сервере будет установлена новая мажорная версия PostgreSQL, напрямую задействовать старый каталог данных нельзя - требуется установить PostgreSQL такой же минорной версии как на старом сервере, или, при соблюдении мер предосторожности (есть проверенная резервная копия каталога данных или всех БД кластера, который требуется сохранить), более новой минорной версии в пределах такой же мажорной. В текущей ситуации версии СУБД полностью совпадают, и можно просто задействовать старый каталог данных. Установим значение data_directory в файле /etc/postgresql/15/main/postgresql.conf:
+```
+data_directory = '/mnt/pgdata/data/15/main'
+```
+Попытка запуска PostgreSQL с использованием старого каталога данных:
+```
+wr@bubuntu20042:~$ sudo -u postgres pg_ctlcluster 15 main start
+Warning: the cluster will not be running as a systemd service. Consider using systemctl:
+  sudo systemctl start postgresql@15-main
+wr@bubuntu20042:~$ sudo -u postgres pg_lsclusters
+Ver Cluster Port Status Owner    Data directory           Log file
+15  main    5432 online postgres /mnt/pgdata/data/15/main /var/log/postgresql/postgresql-15-main.log
+```
+Подключение к PostgreSQL и проверка сохранности данных:
+```
+wr@bubuntu20042:~$ sudo -u postgres pg_lsclusters
+Ver Cluster Port Status Owner    Data directory           Log file
+15  main    5432 online postgres /mnt/pgdata/data/15/main /var/log/postgresql/postgresql-15-main.log
+wr@bubuntu20042:~$ sudo -u postgres psql
+psql (15.7 (Ubuntu 15.7-1.pgdg20.04+1))
+Введите "help", чтобы получить справку.
+
+postgres=# SELECT * FROM test;
+ c1 
+----
+ 1
+(1 строка)
+```
+После выполнения этих операций можно перезапустить кластер PostgreSQL штатными средствами systemd и вводить сервер в работу.
