@@ -59,9 +59,9 @@ data:
 Пароль лучше бы хранить в месте, недоступном для посторонних глаз (например, в продуктивных инсталляциях можно подключить внешний Vault). Можно также создать secret в kubernetes, но в таком случае он всё равно может быть доступен.
 Применим манифест и выведем список ConfigMap:
 ```
-wr@main:~/src/postgresql-lessons/homework09$ kubectl apply -f pg_configmap.yml 
+wr@main:~$ kubectl apply -f pg_configmap.yml 
 configmap/postgres-secret created
-wr@main:~/src/postgresql-lessons/homework09$ kubectl get configmap
+wr@main:~$ kubectl get configmap
 NAME               DATA   AGE
 kube-root-ca.crt   1      87m
 postgres-secret    3      10s
@@ -91,9 +91,9 @@ spec:
 
 Применение манифеста и вывод списка хранилищ:
 ```
-wr@main:~/src/postgresql-lessons/homework09$ kubectl apply -f pg_pv.yml 
+wr@main:~$ kubectl apply -f pg_pv.yml 
 persistentvolume/postgres-volume created
-wr@main:~/src/postgresql-lessons/homework09$ kubectl get pv
+wr@main:~$ kubectl get pv
 NAME              CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM                           STORAGECLASS   VOLUMEATTRIBUTESCLASS   REASON   AGE
 postgres-volume   5Gi        RWX            Retain           Bound    default/postgres-volume-claim   manual         <unset>                          28s
 ```
@@ -118,9 +118,9 @@ spec:
 
 Применение манифеста и вывод списка *клеймов*:
 ```
-wr@main:~/src/postgresql-lessons/homework09$ kubectl apply -f pg_pvc.yml 
+wr@main:~$ kubectl apply -f pg_pvc.yml 
 persistentvolumeclaim/postgres-volume-claim created
-wr@main:~/src/postgresql-lessons/homework09$ kubectl get pvc
+wr@main:~$ kubectl get pvc
 NAME                    STATUS   VOLUME            CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE
 postgres-volume-claim   Bound    postgres-volume   5Gi        RWX            manual         <unset>                 27s
 ```
@@ -162,9 +162,9 @@ spec:
 ```
 Здесь кроме прочих параметров перечислены docker-образ, из которого планируется разворачивать PostgreSQL и его версияб а также упоминания ConfigMap и PVC (это всё можно было собрать в одном файле, но он был бы трудночитаем). Применим написанный манифест и просмотрим список:
 ```
-wr@main:~/src/postgresql-lessons/homework09$ kubectl apply -f pg_statefulset.yaml 
+wr@main:~$ kubectl apply -f pg_statefulset.yaml 
 statefulset.apps/postgres-statefulset created
-wr@main:~/src/postgresql-lessons/homework09$ kubectl get statefulsets
+wr@main:~$ kubectl get statefulsets
 NAME                   READY   AGE
 postgres-statefulset   1/1     4m28s
 ```
@@ -187,9 +187,9 @@ spec:
 ```
 Применение манифеста и вывод списка сервисов:
 ```
-wr@main:~/src/postgresql-lessons/homework09$ kubectl apply -f pg_service.yml 
+wr@main:~$ kubectl apply -f pg_service.yml 
 service/postgres created
-wr@main:~/src/postgresql-lessons/homework09$ kubectl get svc
+wr@main:~$ kubectl get svc
 NAME         TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)          AGE
 kubernetes   ClusterIP   10.96.0.1      <none>        443/TCP          92m
 postgres     NodePort    10.102.97.98   <none>        5432:30616/TCP   13s
@@ -215,13 +215,13 @@ kubectl delete pod postgres-statefulset-0 --grace-period=0 --force
 
 После удаления пода он создался заново:
 ```
-wr@main:~/src/postgresql-lessons/homework09$ kubectl get pods
+wr@main:~$ kubectl get pods
 NAME                     READY   STATUS    RESTARTS   AGE
 postgres-statefulset-0   1/1     Running   0          99s
 ```
 После пересоздания пода повторно запустим его консоль и посмотрим, сохранилась ли созданная ранее БД:
 ```
-wr@main:~/src/postgresql-lessons/homework09$ kubectl exec -it postgres-statefulset-0 -- psql -U postgrespsql (14.12 (Debian 14.12-1.pgdg120+1))
+wr@main:~$ kubectl exec -it postgres-statefulset-0 -- psql -U postgrespsql (14.12 (Debian 14.12-1.pgdg120+1))
 Type "help" for help.
 
 postgres=# \l
