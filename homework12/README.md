@@ -103,3 +103,91 @@ otus-study-postgresql-ha-postgresql-2              1/1     Running   0          
 
 ---
 ## Вариант 2 - pg_auto_failover
+Кластер будет развернут на трёх виртуальных машинах под управлением Ubuntu 24.04.
+* autofailover1 - 192.168.122.119
+* autofailover2 - 192.168.122.84
+* autofailover3 - 192.168.122.77
+
+В Ubuntu кластер PostgreSQL инициализируется автоматически, чтобы этого избежать требуется до установки создать файл `/etc/postgresql-common/createcluster.conf` с содержимым:
+```
+create_main_cluster = false
+```
+Установка PostgreSQL выполнена по [инструкции](https://www.postgresql.org/download/linux/ubuntu/) с сайта PostgreSQL, при помощи apt. Заодно установлен пакет `postgresql-16-auto-failover`.
+```
+sudo apt install postgresql-16 postgresql-16-auto-failover
+```
+Сервис PostgreSQL будет управляться средствами управляющего монитора, поэтому требуется его останоить и отключить автозапуск средствами systemd:
+```
+sudo systemctl disable --now postgresql
+```
+Далее, создана новая директория данных `/var/lib/postgresql/16/test`, и этот путь указан в переменной окружения PGDATA для пользователя postgres:
+```
+export PGDATA="/var/lib/postgresql/16/test"
+```
+Эта же команда добавлена в файл .profile, созданный в домашней директории пользователя postgres.
+
+### Настройка управляющей ноды (монитора)
+После создания директории данных управляющей ноды, можно её инициализировать:
+```
+pg_autoctl create monitor --auth trust --no-ssl --pgport 5432 --hostname autofailover1
+```
+...и попробовать запустить:
+```
+pg_autoctl run
+```
+Нода запустилась, проверить это можно путём выполнения в соседнем окне терминала команд `psql` или
+```
+postgres@autofailover1:~$ pg_autoctl show state
+Name |  Node |  Host:Port |  TLI: LSN |   Connection |      Reported State |      Assigned State
+-----+-------+------------+-----------+--------------+---------------------+--------------------
+```
+По второй команде видно что в данный момент к управляющей ноде ничто не подключено.
+
+В данный момент управляющая нода запущена в интерактивном режиме, остановим её при помощи Ctrl+C и настроим запуск в виде сервиса:
+```
+pg_autoctl -q show systemd --pgdata "/var/lib/postgresql/16/test" | sudo tee /etc/systemd/system/pgautofailover.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now pgautofailover.service
+sudo systemctl status pgautofailover.service
+```
+Перед подключением к управляющей ноде ведомых, требуется разрешить это путём добавления в pg_hba строки
+```
+host    pg_auto_failover        autoctl_node    192.168.122.0/24        trust
+```
+... и перечитать конфигурацию командой:
+```
+pg_autoctl reload
+```
+
+### Настройка ведомых нод
+Настройка показана на примере autofailover2, autofailover3 настроен идентично.
+
+Инициализация СУБД выполнена командой:
+```
+pg_autoctl create postgres --name autofailover2 --pgport 5432 --dbname test --monitor postgres://autoctl_node@192.168.122.119:5432/pg_auto_failover --auth trust --no-ssl
+```
+
+Далее сразу выполнена настройка для запуска СУБД в виде сервиса, аналогично монитору.
+
+После запуска сервиса pg_autofailover на одной из нод, на мониторе можно проверить его состояние:
+```
+postgres@autofailover1:~$ pg_autoctl show state
+         Name |  Node |          Host:Port |       TLI: LSN |   Connection |      Reported State |      Assigned State
+--------------+-------+--------------------+----------------+--------------+---------------------+--------------------
+autofailover2 |     1 | autofailover2:5432 |   1: 0/1937420 | read-write ! |              single |              single
+```
+
+После запуска pg_autofailover на последней ноде, уже виден полностью собранный кластер:
+```
+postgres@autofailover1:~$ pg_autoctl show state
+         Name |  Node |          Host:Port |       TLI: LSN |   Connection |      Reported State |      Assigned State
+--------------+-------+--------------------+----------------+--------------+---------------------+--------------------
+autofailover2 |     1 | autofailover2:5432 |   1: 0/3000148 |   read-write |             primary |             primary
+autofailover3 |    14 | autofailover3:5432 |   1: 0/3000148 |    read-only |           secondary |           secondary
+```
+
+Для открытия возможности подключения клиентов, в pg_hba на autofailover2 и autofailover3 добавлена строка:
+```
+host    all             all             192.168.122.0/24        scram-sha-256
+```
+После чего можно настроить haproxy, keepalived и другие сервисы для обеспечения высокой доступности, по аналогии выполненному заданию о настройке Patroni.
