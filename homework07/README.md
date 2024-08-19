@@ -79,9 +79,10 @@ wr@etcd1:~$ sudo rm /var/lib/etcd/default/* -r
 Далее, создано две копии виртуальной машины:
 ![](./vm_clonning.png)
 Получено три виртуальные машины:
-*etcd1 - 192.168.122.18
-*etcd2 - 192.168.122.104
-*etcd3 - 192.168.122.187
+* etcd1 - 192.168.122.18
+* etcd2 - 192.168.122.104
+* etcd3 - 192.168.122.187
+
 С учётом новых данных, на всех машинах требуется установить корректные значения переменных окружения `ETCD_NAME`, `ETCD_INITIAL_ADVERTISE_PEER_URLS`, `ETCD_ADVERTISE_CLIENT_URLS`, а в переменной `ETCD_INITIAL_CLUSTER` указать список url всех нод:
 ```
 ETCD_INITIAL_CLUSTER="etcd1=http://192.168.122.18:2380,etcd2=http://192.168.122.104:2380,etcd3=http://192.168.122.187:2380"
@@ -106,9 +107,10 @@ wr@etcd3:~$ etcdctl endpoint status --cluster -w table
 ---
 ## Установка PostgreSQL и Patroni
 Под PostgreSQL и Patroni созданы три виртуальные машины:
-*patroni1 - 192.168.122.236
-*patroni2 - 192.168.122.188
-*patroni3 - 192.168.122.95
+* patroni1 - 192.168.122.236
+* patroni2 - 192.168.122.188
+* patroni3 - 192.168.122.95
+
 PostgreSQL 16 установлен на все ноды (или на одну, если развертывание также делается методом копирования ВМ) в соответствии [документации](https://www.postgresql.org/download/linux/ubuntu/), сразу после этого стандартная служба PostgreSQL остановлена и отключен её автозапуск, так как процессом PostgreSQL будет управлять Patroni:
 ```
 wr@patroni1:~$ sudo systemctl disable --now postgresql.service
