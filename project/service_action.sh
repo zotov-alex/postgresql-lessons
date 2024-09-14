@@ -25,7 +25,7 @@ if ! [[ "$newrole" =~ ^("master"|"replica")$ ]]; then
     exit 1
 fi
 
-echo $LOG_PREFIX" WARNING Script started for event $event, new role $newrole for cluster $clustername" >> $LOG_PATH/$LOG_NAME
+echo $LOG_PREFIX" WARNING: Script started for event $event, new role $newrole for cluster $clustername" >> $LOG_PATH/$LOG_NAME
 
 if [[ "$event" -eq "on_start" ]] || [[ "$event" -eq "on_role_change" && "$newrole" -eq "master" ]]; then
     echo $LOG_PREFIX" WARNING: Have to activate service for this conditions, executing now!" >> $LOG_PATH/$LOG_NAME
