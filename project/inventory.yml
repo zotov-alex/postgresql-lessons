@@ -1,8 +1,0 @@
-backends:
-  hosts:
-    local:
-      ansible_host: 192.168.122.171
-    foreign:
-      ansible_host: 192.168.122.105
-  vars:
-    ansible_user: wr
