@@ -27,11 +27,11 @@ fi
 
 echo $LOG_PREFIX" WARNING: Script started for event $event, new role $newrole for cluster $clustername" >> $LOG_PATH/$LOG_NAME
 
-if [[ "$event" -eq "on_start" ]] || [[ "$event" -eq "on_role_change" && "$newrole" -eq "master" ]]; then
+if [[ "$event" == "on_start" ]] || [[ "$event" == "on_role_change" && "$newrole" == "master" ]]; then
     echo $LOG_PREFIX" WARNING: Have to activate service for this conditions, executing now!" >> $LOG_PATH/$LOG_NAME
     ansible-playbook -i $ANSIBLE_PATH/inventory.yml $ANSIBLE_PATH/start-local.yml > $LOG_PATH/$ANSIBLE_LASTLOG
-elif [[ "$event" -eq "on_stop" ]] || [[ "$event" -eq "on_role_change" && "$newrole" -eq "replica" ]]; then
-    echo $LOG_PREFIX" WARNING: Have to activate service for this conditions, executing now!" >> $LOG_PATH/$LOG_NAME
+elif [[ "$event" == "on_stop" ]] || [[ "$event" == "on_role_change" && "$newrole" == "replica" ]]; then
+    echo $LOG_PREFIX" WARNING: Have to deactivate service for this conditions, executing now!" >> $LOG_PATH/$LOG_NAME
     ansible-playbook -i $ANSIBLE_PATH/inventory.yml $ANSIBLE_PATH/stop-local.yml > $LOG_PATH/$ANSIBLE_LASTLOG
 fi
 
